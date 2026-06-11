@@ -26,6 +26,8 @@ $EDITOR config/values.yaml
 ./bin/mihctl config gen
 ```
 
+Tagged releases publish `tar.gz` archives for Linux and macOS on both `amd64` and `arm64`, plus a `checksums.txt` file.
+
 ## Key commands
 
 ```bash
