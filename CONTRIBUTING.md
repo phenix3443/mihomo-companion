@@ -24,3 +24,7 @@
 - keep changes focused on one logical change
 - add or update tests for behavior changes
 - update docs when command behavior or config expectations change
+- add one release label before merge so tagged releases can group notes correctly
+- use `enhancement`, `feature`, `change`, or `feat` for `Change`
+- use `bug` or `fix` for `Bug Fixes`
+- use `chore`, `ci`, `dependencies`, `docs`, `documentation`, `refactor`, or `test` for `Maintenance`
