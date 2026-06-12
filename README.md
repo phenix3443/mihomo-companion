@@ -30,6 +30,8 @@ Tagged releases publish `tar.gz` archives for Linux and macOS on both `amd64` an
 
 When `mihctl` is used from an instance repository instead of the `mihomo-companion` source tree, set `MIHCTL_INSTANCE_ROOT` to that instance repository root before running commands.
 
+Before pushing repository changes, run `make ci`. Keep tracked provider examples on placeholder domains such as `example.com`; real provider subscription links belong only in your local `config/values.yaml`.
+
 ## Key commands
 
 ```bash

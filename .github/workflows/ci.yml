@@ -5,7 +5,39 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify no private config is tracked
+        run: |
+          test ! -f config/values.yaml
+          test ! -d providers || [ -z "$(find providers -type f ! -name .gitkeep -print -quit)" ]
+      - name: Check sensitive links
+        run: bash scripts/ci/check-no-sensitive-links.sh
+      - name: Test sensitive-link checker
+        run: bash scripts/ci/check-no-sensitive-links-test.sh
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Check gofmt
+        run: test -z "$(gofmt -l .)" || (echo "Run gofmt on listed files above"; gofmt -l .; exit 1)
+      - name: Run go vet
+        run: go vet ./...
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -13,10 +45,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Verify no private config is tracked
-        run: |
-          test ! -f config/values.yaml
-          test ! -d providers || [ -z "$(find providers -type f ! -name .gitkeep -print -quit)" ]
       - name: Run tests
         run: go test ./...
       - name: Build binary

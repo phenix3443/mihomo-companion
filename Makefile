@@ -1,4 +1,4 @@
-.PHONY: build install install-yq install-lefthook hooks install-scheduler-deps test
+.PHONY: build install install-yq install-lefthook hooks install-scheduler-deps test lint check-sensitive-links test-sensitive-links ci
 
 build:
 	@mkdir -p bin
@@ -6,6 +6,19 @@ build:
 
 test:
 	@go test ./...
+
+lint:
+	@test -z "$$(gofmt -l .)" || (echo "Run gofmt on listed files above"; gofmt -l .; exit 1)
+	@go vet ./...
+	@golangci-lint run ./...
+
+check-sensitive-links:
+	@bash scripts/ci/check-no-sensitive-links.sh
+
+test-sensitive-links:
+	@bash scripts/ci/check-no-sensitive-links-test.sh
+
+ci: lint test check-sensitive-links test-sensitive-links
 
 install: install-yq install-lefthook hooks install-scheduler-deps
 
