@@ -12,7 +12,7 @@ type nativeConfigGenOptions struct {
 }
 
 func runNativeConfigGen(options nativeConfigGenOptions) error {
-	repoRoot, err := configgen.DetectRepoRoot()
+	repoRoot, err := configgen.ResolveRepoRoot()
 	if err != nil {
 		return err
 	}

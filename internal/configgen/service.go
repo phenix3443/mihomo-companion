@@ -980,7 +980,7 @@ func DetectRepoRoot() (string, error) {
 		return "", err
 	}
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "cmd", "mihomo", "main.go")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "cmd", "mihctl", "main.go")); err == nil {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
