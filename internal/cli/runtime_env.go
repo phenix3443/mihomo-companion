@@ -6,7 +6,7 @@ import (
 )
 
 var loadEnv = func() (*mihomo.Env, error) {
-	repoRoot, err := configgen.DetectRepoRoot()
+	repoRoot, err := configgen.ResolveRepoRoot()
 	if err != nil {
 		return nil, err
 	}
