@@ -1676,6 +1676,164 @@ rules:
 	}
 }
 
+func TestGenerateConfigOmitsDirectFromAllProxyGroups(t *testing.T) {
+	repoRoot := t.TempDir()
+	configDir := filepath.Join(repoRoot, "config")
+	providersDir := filepath.Join(repoRoot, "providers")
+	if err := os.MkdirAll(filepath.Join(configDir, "local"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(providersDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	template := `proxies:
+{{ toYAML .Proxies | indent 2 }}
+proxy-groups:
+{{ toYAML .ProxyGroups | indent 2 }}
+proxy-providers:
+{{ toYAML .ProxyProviders | indent 2 }}
+rule-providers: {}
+rules:
+  - MATCH,DIRECT
+`
+	values := `
+profiles:
+  local:
+    os: macos
+probe:
+  services:
+    latency:
+      uri: https://connectivitycheck.gstatic.com/generate_204
+proxy-providers:
+  bywave:
+    type: http
+    url: https://example.com/sub
+    interval: 60
+    path: ./providers/bywave.yaml
+service-groups:
+  auto:
+    probe: latency
+    type: url-test
+    interval: 300
+    tolerance: 50
+    lazy: true
+    profiles:
+      local:
+        providers: [bywave]
+`
+	providerYAML := `proxies:
+  - name: DIRECT
+    type: ss
+    server: 1.1.1.1
+    port: 443
+    cipher: aes-128-gcm
+    password: secret-direct
+  - name: proxy-b
+    type: ss
+    server: 2.2.2.2
+    port: 443
+    cipher: aes-128-gcm
+    password: secret-b
+`
+	if err := os.WriteFile(filepath.Join(configDir, "mihomo.yaml.tmpl"), []byte(template), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "values.yaml"), []byte(values), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(providersDir, "bywave.yaml"), []byte(providerYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	catalog, err := LoadProviderCatalog(repoRoot, map[string]ProxyProviderSpec{
+		"bywave": {Path: "./providers/bywave.yaml"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	probeStatePath := filepath.Join(t.TempDir(), "probe-results.yaml")
+	t.Setenv("MIHOMO_PROBE_STATE_PATH", probeStatePath)
+	now := time.Now().UTC()
+	latencyDigest := probeServiceDigest(ProbeServiceSpec{URI: "https://connectivitycheck.gstatic.com/generate_204"})
+	state := &ProbeState{
+		Providers: map[string]ProviderProbeState{
+			"bywave": {
+				Provider:           "bywave",
+				SubscriptionDigest: catalog.Providers["bywave"].Digest,
+				Nodes: map[string]NodeProbeState{
+					"DIRECT": {
+						NodeName: "DIRECT",
+						Services: map[string]ServiceProbeState{
+							"latency": {
+								OK:          true,
+								ProbeDigest: latencyDigest,
+								ProbedAt:    now.Add(-time.Minute).Format(time.RFC3339),
+							},
+						},
+					},
+					"proxy-b": {
+						NodeName: "proxy-b",
+						Services: map[string]ServiceProbeState{
+							"latency": {
+								OK:          true,
+								ProbeDigest: latencyDigest,
+								ProbedAt:    now.Add(-time.Minute).Format(time.RFC3339),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	populateFreshGroupProbeStateForTests(t, repoRoot, filepath.Join(configDir, "values.yaml"), state)
+	if err := SaveProbeState(probeStatePath, state); err != nil {
+		t.Fatal(err)
+	}
+
+	service := newTestService(repoRoot, configDir)
+	if _, err := service.Generate(GenerateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	generated, err := LoadConfig(profileConfigPath(configDir, "local"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	groups, ok := generated["proxy-groups"].([]any)
+	if !ok {
+		t.Fatalf("proxy-groups = %#v", generated["proxy-groups"])
+	}
+	for _, rawGroup := range groups {
+		group, ok := asMap(rawGroup)
+		if !ok {
+			t.Fatalf("group type = %T", rawGroup)
+		}
+		rawProxies, ok := group["proxies"].([]any)
+		if !ok {
+			continue
+		}
+		for _, rawProxy := range rawProxies {
+			name, ok := rawProxy.(string)
+			if !ok {
+				t.Fatalf("group proxy type = %T", rawProxy)
+			}
+			if name == "DIRECT" {
+				t.Fatalf("group %q still contains DIRECT: %#v", group["name"], rawProxies)
+			}
+		}
+	}
+
+	rules, ok := generated["rules"].([]any)
+	if !ok || len(rules) != 1 {
+		t.Fatalf("rules = %#v", generated["rules"])
+	}
+	if got, _ := rules[0].(string); got != "MATCH,DIRECT" {
+		t.Fatalf("rule = %q, want MATCH,DIRECT", got)
+	}
+}
+
 func TestGenerateStableKeepsAllSuccessfulLatencyNodes(t *testing.T) {
 	originalStartMihomoProbeRuntimeFunc := startMihomoProbeRuntimeFunc
 	originalRuntimeHTTPRequestViaNodeFunc := runtimeHTTPRequestViaNodeFunc
