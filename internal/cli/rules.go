@@ -9,14 +9,14 @@ func newRulesCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(&cobra.Command{
-		Use:   "sync",
-		Short: "Fetch remote rule providers into the live ruleset directory",
+		Use:   "update",
+		Short: "Force the running Mihomo instance to refresh all active rule providers",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := loadEnv()
 			if err != nil {
 				return err
 			}
-			return env.SyncRules()
+			return env.UpdateRules()
 		},
 	})
 

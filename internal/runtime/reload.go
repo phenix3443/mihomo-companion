@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -125,6 +126,63 @@ func Reload(info APIReloadInfo) error {
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("reload failed with status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func RuleProviders(info APIReloadInfo) ([]string, error) {
+	req, err := http.NewRequest(http.MethodGet, info.BaseURL+"/providers/rules", nil)
+	if err != nil {
+		return nil, err
+	}
+	if info.Secret != "" {
+		req.Header.Set("Authorization", "Bearer "+info.Secret)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
+		return nil, fmt.Errorf("list rule providers failed with status %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		Providers map[string]any `json:"providers"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+
+	names := make([]string, 0, len(payload.Providers))
+	for name := range payload.Providers {
+		names = append(names, name)
+	}
+	return names, nil
+}
+
+func UpdateRuleProvider(info APIReloadInfo, name string) error {
+	req, err := http.NewRequest(http.MethodPut, info.BaseURL+"/providers/rules/"+name, bytes.NewBufferString("{}"))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if info.Secret != "" {
+		req.Header.Set("Authorization", "Bearer "+info.Secret)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("update rule provider %s failed with status %d", name, resp.StatusCode)
 	}
 	return nil
 }
