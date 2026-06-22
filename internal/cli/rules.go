@@ -2,12 +2,12 @@ package cli
 
 import "github.com/spf13/cobra"
 
-var runRulesSync = func(env rulesSyncEnv) error {
-	return env.SyncRules()
+var runRulesUpdate = func(env rulesUpdateEnv) error {
+	return env.UpdateRules()
 }
 
-type rulesSyncEnv interface {
-	SyncRules() error
+type rulesUpdateEnv interface {
+	UpdateRules() error
 }
 
 func newRulesCmd() *cobra.Command {
@@ -16,22 +16,17 @@ func newRulesCmd() *cobra.Command {
 		Short: "Manage rule providers",
 	}
 
-	cmd.AddCommand(newRulesSyncCmd("sync", "Fetch remote rule providers into the live ruleset directory"))
-	cmd.AddCommand(newRulesSyncCmd("update", "Force the running Mihomo instance to refresh all active rule providers"))
-
-	return cmd
-}
-
-func newRulesSyncCmd(use string, short string) *cobra.Command {
-	return &cobra.Command{
-		Use:   use,
-		Short: short,
+	cmd.AddCommand(&cobra.Command{
+		Use:   "update",
+		Short: "Force the running Mihomo instance to refresh all active rule providers",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := loadEnv()
 			if err != nil {
 				return err
 			}
-			return runRulesSync(env)
+			return runRulesUpdate(env)
 		},
-	}
+	})
+
+	return cmd
 }

@@ -1,6 +1,10 @@
 package mihomo
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestParseStandaloneRuntimeLine(t *testing.T) {
 	line := "/opt/homebrew/opt/mihomo/bin/mihomo -d /Users/demo/.config/mihomo"
@@ -65,5 +69,31 @@ func TestParseLinuxRuntimeLineRejectsNonMihomoExecutable(t *testing.T) {
 	_, _, ok := parseLinuxRuntimeLine(line)
 	if ok {
 		t.Fatal("expected non-mihomo executable to be rejected")
+	}
+}
+
+func TestDetectRuntimeDoesNotTreatVergeProfilesAsRunningRuntime(t *testing.T) {
+	homeDir := t.TempDir()
+	vergeProfilesDir := filepath.Join(homeDir, "Library", "Application Support", "io.github.clash-verge-rev.clash-verge-rev", "profiles")
+	if err := os.MkdirAll(vergeProfilesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(vergeProfilesDir), "profiles.yaml"), []byte("current: demo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(vergeProfilesDir, "demo.yaml"), []byte("mixed-port: 7890\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	env := &Env{
+		OS:            "darwin",
+		HomeDir:       homeDir,
+		ClashVergeDir: vergeProfilesDir,
+		ConfigDir:     filepath.Join(homeDir, ".config", "mihomo"),
+	}
+
+	runtime := env.DetectRuntime()
+	if runtime.Client == "verge" {
+		t.Fatalf("client = %q, want non-verge runtime when no verge-mihomo process exists", runtime.Client)
 	}
 }

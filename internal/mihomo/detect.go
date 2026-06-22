@@ -176,20 +176,7 @@ func (e *Env) detectVergeRuntime() (runtimeInfo, bool) {
 			ConfigFile: configFile,
 		}, true
 	}
-
-	profileUID := strings.TrimSpace(runOptional("", "yq", ".current", e.ClashVergeProfilesYAML()))
-	if profileUID == "" || profileUID == "null" {
-		return runtimeInfo{}, false
-	}
-	configFile := filepath.Join(e.ClashVergeDir, profileUID+".yaml")
-	if !fileExists(configFile) {
-		return runtimeInfo{}, false
-	}
-	return runtimeInfo{
-		Client:     "verge",
-		InstallDir: e.ClashVergeDataDir(),
-		ConfigFile: configFile,
-	}, true
+	return runtimeInfo{}, false
 }
 
 func (e *Env) detectLinuxRuntime() (runtimeInfo, bool) {

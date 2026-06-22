@@ -174,7 +174,7 @@ func (s *Service) buildRenderData(profile, platform string, options GenerateOpti
 					refreshCommand,
 				)
 			}
-			groupConfigValues["proxies"] = proxies
+			groupConfigValues["proxies"] = filterReservedProxyGroupMembers(proxies)
 			groupConfigKeys = append(groupConfigKeys, "proxies")
 			proxyConfigs = builtProxyConfigs
 		} else {
@@ -339,6 +339,18 @@ func toAnySlice(values []string) []any {
 		items = append(items, value)
 	}
 	return items
+}
+
+func filterReservedProxyGroupMembers(values []any) []any {
+	filtered := make([]any, 0, len(values))
+	for _, value := range values {
+		name, ok := value.(string)
+		if ok && strings.EqualFold(strings.TrimSpace(name), "DIRECT") {
+			continue
+		}
+		filtered = append(filtered, value)
+	}
+	return filtered
 }
 
 func buildRuntimeGroupProvidersAndFilters(groupProfile ServiceGroupProfileSpec, groupSpec ServiceGroupSpec, cfg *GenerationConfig) ([]string, string, string, error) {
