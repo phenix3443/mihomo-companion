@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -137,6 +138,8 @@ func parseSubscriptionLine(provider, line string) (ParsedProxy, error) {
 	switch {
 	case strings.HasPrefix(line, "ss://"):
 		return parseSSProxy(provider, line)
+	case strings.HasPrefix(line, "vmess://"):
+		return parseVMessProxy(provider, line)
 	case strings.HasPrefix(line, "vless://"):
 		return parseVLESSProxy(provider, line)
 	case strings.HasPrefix(line, "hysteria2://"):
@@ -152,15 +155,22 @@ func parseSSProxy(provider, raw string) (ParsedProxy, error) {
 		return ParsedProxy{}, err
 	}
 	name := decodeFragment(u.Fragment)
-	server := u.Hostname()
-	portValue, err := strconv.Atoi(u.Port())
-	if err != nil {
-		return ParsedProxy{}, fmt.Errorf("invalid ss port in %q", raw)
+	if beforeAt, _, ok := strings.Cut(name, "@"); ok {
+		name = beforeAt
 	}
 
-	method, password, err := parseSSUserInfo(u)
+	method, password, server, portValue, err := parseSSUserInfo(u)
 	if err != nil {
 		return ParsedProxy{}, err
+	}
+	if server == "" {
+		server = u.Hostname()
+	}
+	if portValue == 0 {
+		portValue, err = strconv.Atoi(u.Port())
+		if err != nil {
+			return ParsedProxy{}, fmt.Errorf("invalid ss port in %q", raw)
+		}
 	}
 
 	cfg := map[string]any{
@@ -176,22 +186,51 @@ func parseSSProxy(provider, raw string) (ParsedProxy, error) {
 	return ParsedProxy{Provider: provider, Name: name, Config: cfg}, nil
 }
 
-func parseSSUserInfo(u *url.URL) (string, string, error) {
+func parseSSUserInfo(u *url.URL) (string, string, string, int, error) {
+	if u.User == nil && u.Host != "" && u.Port() == "" {
+		decoded, err := decodeBase64URLValue(u.Host)
+		if err == nil {
+			method, password, server, port, err := parseSSDecodedPayload(decoded)
+			if err == nil {
+				return method, password, server, port, nil
+			}
+		}
+	}
 	if u.User == nil {
-		return "", "", fmt.Errorf("ss uri missing user info")
+		return "", "", "", 0, fmt.Errorf("ss uri missing user info")
 	}
 	if password, ok := u.User.Password(); ok {
-		return u.User.Username(), password, nil
+		return u.User.Username(), password, "", 0, nil
 	}
 	decoded, err := decodeBase64URLValue(u.User.Username())
 	if err != nil {
-		return "", "", fmt.Errorf("decode ss userinfo: %w", err)
+		return "", "", "", 0, fmt.Errorf("decode ss userinfo: %w", err)
 	}
+	return parseSSDecodedPayload(decoded)
+}
+
+func parseSSDecodedPayload(decoded string) (string, string, string, int, error) {
+	if credentials, endpoint, ok := strings.Cut(decoded, "@"); ok {
+		parts := strings.SplitN(credentials, ":", 2)
+		if len(parts) != 2 {
+			return "", "", "", 0, fmt.Errorf("invalid ss userinfo payload")
+		}
+		host, portText, err := net.SplitHostPort(endpoint)
+		if err != nil {
+			return "", "", "", 0, fmt.Errorf("invalid ss endpoint in userinfo")
+		}
+		portValue, err := strconv.Atoi(portText)
+		if err != nil {
+			return "", "", "", 0, fmt.Errorf("invalid ss port in userinfo")
+		}
+		return parts[0], parts[1], host, portValue, nil
+	}
+
 	parts := strings.SplitN(decoded, ":", 2)
 	if len(parts) != 2 {
-		return "", "", fmt.Errorf("invalid ss userinfo payload")
+		return "", "", "", 0, fmt.Errorf("invalid ss userinfo payload")
 	}
-	return parts[0], parts[1], nil
+	return parts[0], parts[1], "", 0, nil
 }
 
 func applySSPluginOptions(cfg map[string]any, raw string) {
@@ -237,6 +276,77 @@ func normalizeSSPluginName(name string) string {
 	default:
 		return name
 	}
+}
+
+func parseVMessProxy(provider, raw string) (ParsedProxy, error) {
+	payload := strings.TrimPrefix(strings.TrimSpace(raw), "vmess://")
+	decoded, err := decodeBase64URLValue(payload)
+	if err != nil {
+		return ParsedProxy{}, fmt.Errorf("decode vmess payload: %w", err)
+	}
+
+	var node struct {
+		Name     string `json:"ps"`
+		Server   string `json:"add"`
+		Port     string `json:"port"`
+		UUID     string `json:"id"`
+		AlterID  int    `json:"aid"`
+		Network  string `json:"net"`
+		Type     string `json:"type"`
+		TLS      string `json:"tls"`
+		Host     string `json:"host"`
+		Path     string `json:"path"`
+		SNI      string `json:"sni"`
+		ServerNI string `json:"servername"`
+		Cipher   string `json:"scy"`
+	}
+	if err := json.Unmarshal([]byte(decoded), &node); err != nil {
+		return ParsedProxy{}, fmt.Errorf("decode vmess json: %w", err)
+	}
+
+	portValue, err := strconv.Atoi(strings.TrimSpace(node.Port))
+	if err != nil {
+		return ParsedProxy{}, fmt.Errorf("invalid vmess port in %q", raw)
+	}
+
+	name := node.Name
+	if beforeAt, _, ok := strings.Cut(name, "@"); ok {
+		name = beforeAt
+	}
+
+	cfg := map[string]any{
+		"name":    name,
+		"type":    "vmess",
+		"server":  strings.TrimSpace(node.Server),
+		"port":    portValue,
+		"uuid":    strings.TrimSpace(node.UUID),
+		"alterId": node.AlterID,
+		"cipher":  nonEmpty(strings.TrimSpace(node.Cipher), "auto"),
+		"udp":     true,
+	}
+	if network := strings.TrimSpace(node.Network); network != "" && network != "tcp" {
+		cfg["network"] = network
+	}
+	if strings.EqualFold(strings.TrimSpace(node.TLS), "tls") {
+		cfg["tls"] = true
+	}
+	if serverName := nonEmpty(strings.TrimSpace(node.SNI), strings.TrimSpace(node.ServerNI)); serverName != "" {
+		cfg["servername"] = serverName
+	}
+	if network := strings.TrimSpace(node.Network); network == "ws" {
+		wsOpts := map[string]any{}
+		if path := strings.TrimSpace(node.Path); path != "" {
+			wsOpts["path"] = path
+		}
+		if host := strings.TrimSpace(node.Host); host != "" {
+			wsOpts["headers"] = map[string]any{"Host": host}
+		}
+		if len(wsOpts) > 0 {
+			cfg["ws-opts"] = wsOpts
+		}
+	}
+
+	return ParsedProxy{Provider: provider, Name: name, Config: cfg}, nil
 }
 
 func parseVLESSProxy(provider, raw string) (ParsedProxy, error) {
