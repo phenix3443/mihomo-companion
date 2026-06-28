@@ -135,6 +135,81 @@ func TestLoadProviderCatalogParsesRawSubscriptions(t *testing.T) {
 	}
 }
 
+func TestLoadProviderCatalogParsesJMSStyleSSSubscriptions(t *testing.T) {
+	dir := t.TempDir()
+	jmsPath := filepath.Join(dir, "providers", "jms.yaml")
+	if err := os.MkdirAll(filepath.Dir(jmsPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	jmsSSLine := "ss://YWVzLTI1Ni1nY206ZGphb1NScWZ0djlINlNnVUAxNDQuMzQuMTY0LjEyODoxNzIxNQ#JMS-1404950@c69s1.portablesubmarines.com:17215"
+	if err := os.WriteFile(jmsPath, []byte(base64.StdEncoding.EncodeToString([]byte(jmsSSLine+"\n"))), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	catalog, err := LoadProviderCatalog(dir, map[string]ProxyProviderSpec{
+		"jms": {Path: "./providers/jms.yaml"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	jms := catalog.Providers["jms"]
+	if len(jms.Proxies) != 1 {
+		t.Fatalf("jms proxy count = %d, want 1", len(jms.Proxies))
+	}
+	if got := stringValue(jms.Proxies[0].Config["type"]); got != "ss" {
+		t.Fatalf("jms type = %q", got)
+	}
+	if got := stringValue(jms.Proxies[0].Config["name"]); got != "JMS-1404950" {
+		t.Fatalf("jms name = %q", got)
+	}
+	if got := stringValue(jms.Proxies[0].Config["server"]); got != "144.34.164.128" {
+		t.Fatalf("jms server = %q", got)
+	}
+	if got, ok := intValue(jms.Proxies[0].Config["port"]); !ok || got != 17215 {
+		t.Fatalf("jms port = %v, ok=%v", jms.Proxies[0].Config["port"], ok)
+	}
+}
+
+func TestLoadProviderCatalogParsesVMessSubscriptions(t *testing.T) {
+	dir := t.TempDir()
+	vmessPath := filepath.Join(dir, "providers", "vmess.yaml")
+	if err := os.MkdirAll(filepath.Dir(vmessPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	vmessPayload := `{"ps":"JMS-1404950@c69s3.portablesubmarines.com:17215","port":"17215","id":"08980dda-c246-49df-8da4-66b9ccc6de13","aid":0,"net":"tcp","type":"none","tls":"none","add":"104.243.26.96"}`
+	vmessLine := "vmess://" + base64.StdEncoding.EncodeToString([]byte(vmessPayload))
+	if err := os.WriteFile(vmessPath, []byte(base64.StdEncoding.EncodeToString([]byte(vmessLine+"\n"))), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	catalog, err := LoadProviderCatalog(dir, map[string]ProxyProviderSpec{
+		"vmess": {Path: "./providers/vmess.yaml"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vmess := catalog.Providers["vmess"]
+	if len(vmess.Proxies) != 1 {
+		t.Fatalf("vmess proxy count = %d, want 1", len(vmess.Proxies))
+	}
+	if got := stringValue(vmess.Proxies[0].Config["type"]); got != "vmess" {
+		t.Fatalf("vmess type = %q", got)
+	}
+	if got := stringValue(vmess.Proxies[0].Config["name"]); got != "JMS-1404950" {
+		t.Fatalf("vmess name = %q", got)
+	}
+	if got := stringValue(vmess.Proxies[0].Config["server"]); got != "104.243.26.96" {
+		t.Fatalf("vmess server = %q", got)
+	}
+	if got, ok := intValue(vmess.Proxies[0].Config["port"]); !ok || got != 17215 {
+		t.Fatalf("vmess port = %v, ok=%v", vmess.Proxies[0].Config["port"], ok)
+	}
+}
+
 func TestGenerateUsesFreshProbeStateAndExpandsProxies(t *testing.T) {
 	repoRoot := t.TempDir()
 	configDir := filepath.Join(repoRoot, "config")
