@@ -50,7 +50,6 @@ type Env struct {
 	DefaultProfile      string
 	RuntimeProfiles     []RuntimeProfile
 	ProvidersDir        string
-	ProbeStatePath      string
 	OfficialSupportPath string
 
 	FetchConnectTimeout time.Duration
@@ -95,11 +94,6 @@ func LoadEnv(repoRoot string) (*Env, error) {
 		FetchConnectTimeout: durationFromEnv("MIHOMO_FETCH_CONNECT_TIMEOUT", defaultFetchConnect),
 		FetchMaxTime:        durationFromEnv("MIHOMO_FETCH_MAX_TIME", defaultFetchMax),
 	}
-	probeStatePath, err := configgen.DefaultProbeStatePath()
-	if err != nil {
-		return nil, err
-	}
-	env.ProbeStatePath = probeStatePath
 	officialSupportPath, err := configgen.DefaultOfficialSupportStatePath()
 	if err != nil {
 		return nil, err

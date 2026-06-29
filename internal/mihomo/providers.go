@@ -206,64 +206,6 @@ func (e *Env) UpdateProvidersRemote() error {
 	return nil
 }
 
-func (e *Env) ProbeProviders(scope configgen.ProbeScope) error {
-	cfg, err := loadGenerationConfigFromRepo(e.RepoRoot)
-	if err != nil {
-		return err
-	}
-	started := time.Now()
-	logStep("Running local provider service probe")
-	if len(scope.Providers) > 0 {
-		logInfo("Scoped providers: %s", strings.Join(scope.Providers, ", "))
-	}
-	if len(scope.Services) > 0 {
-		logInfo("Scoped probe targets: %s", strings.Join(scope.Services, ", "))
-	}
-	restoreProgressReporter := configgen.SetProbeProgressReporter(func(event configgen.ProbeProgressEvent) {
-		if event.Total == 0 {
-			return
-		}
-		logInfo(
-			"Probe progress [%s/%s -> %s]: %d/%d (success=%d, failed=%d, skipped=%d)",
-			event.Profile,
-			event.Group,
-			event.Service,
-			event.Completed,
-			event.Total,
-			event.Success,
-			event.Failed,
-			event.Skipped,
-		)
-	})
-	defer restoreProgressReporter()
-	if err := configgen.RunProbe(e.RepoRoot, e.ProbeStatePath, cfg, scope); err != nil {
-		return err
-	}
-	logProbeRunSummary(e.RepoRoot, e.ProbeStatePath, cfg, scope, time.Since(started))
-	return nil
-}
-
-func logProbeRunSummary(repoRoot, statePath string, cfg *configgen.GenerationConfig, scope configgen.ProbeScope, duration time.Duration) {
-	summary, err := configgen.SummarizeProbeRun(repoRoot, statePath, cfg, scope)
-	if err != nil {
-		logWarn("Unable to summarize probe run: %v", err)
-		return
-	}
-	duration = duration.Round(10 * time.Millisecond)
-	for _, service := range summary.Services {
-		fields := []string{
-			fmt.Sprintf("service=%s", service.Service),
-			fmt.Sprintf("candidates=%d", service.Candidates),
-			fmt.Sprintf("success=%d", service.Success),
-			fmt.Sprintf("failed=%d", service.Failed),
-		}
-		if service.Skipped > 0 {
-			fields = append(fields, fmt.Sprintf("skipped=%d", service.Skipped))
-		}
-		logSuccess("Probe summary (%s, duration=%s): %s", summary.Mode, duration, strings.Join(fields, ", "))
-	}
-}
-
 func (e *Env) RefreshOfficialSupport() error {
 	logStep("Refreshing official support catalog")
 	cfg, err := loadGenerationConfigFromRepo(e.RepoRoot)

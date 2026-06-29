@@ -2,12 +2,10 @@ package configgen
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 
@@ -48,14 +46,6 @@ func (s *Service) Generate(options GenerateOptions) (*GenerateResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	statePath, err := DefaultProbeStatePath()
-	if err != nil {
-		return nil, err
-	}
-	probeState, err := LoadProbeState(statePath)
-	if err != nil {
-		return nil, err
-	}
 
 	result := &GenerateResult{
 		Artifacts: []GeneratedArtifact{},
@@ -65,7 +55,7 @@ func (s *Service) Generate(options GenerateOptions) (*GenerateResult, error) {
 		if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 			return nil, err
 		}
-		if err := s.generateProfile(profile.Name, profile.Platform, outputPath, options, cfg, catalog, probeState); err != nil {
+		if err := s.generateProfile(profile.Name, profile.Platform, outputPath, options, cfg, catalog); err != nil {
 			return nil, err
 		}
 		result.Artifacts = append(result.Artifacts, GeneratedArtifact{
@@ -77,8 +67,8 @@ func (s *Service) Generate(options GenerateOptions) (*GenerateResult, error) {
 	return result, nil
 }
 
-func (s *Service) generateProfile(profile, platform, outputPath string, options GenerateOptions, cfg *GenerationConfig, catalog *ProviderCatalog, probeState *ProbeState) error {
-	renderData, err := s.buildRenderData(profile, platform, options, cfg, catalog, probeState)
+func (s *Service) generateProfile(profile, platform, outputPath string, options GenerateOptions, cfg *GenerationConfig, catalog *ProviderCatalog) error {
+	renderData, err := s.buildRenderData(profile, platform, options, cfg, catalog)
 	if err != nil {
 		return err
 	}
@@ -96,11 +86,7 @@ func (s *Service) generateProfile(profile, platform, outputPath string, options 
 	return os.WriteFile(outputPath, []byte(rendered), 0o644)
 }
 
-func (s *Service) buildRenderData(profile, platform string, options GenerateOptions, cfg *GenerationConfig, catalog *ProviderCatalog, probeState *ProbeState) (RenderData, error) {
-	probeDigests, err := BuildProbeServiceDigests(cfg)
-	if err != nil {
-		return RenderData{}, err
-	}
+func (s *Service) buildRenderData(profile, platform string, options GenerateOptions, cfg *GenerationConfig, catalog *ProviderCatalog) (RenderData, error) {
 	externalUI := ""
 	if platform == "linux" {
 		externalUI = strings.TrimSpace(cfg.Template.ExternalUI["linux"])
@@ -156,55 +142,29 @@ func (s *Service) buildRenderData(profile, platform string, options GenerateOpti
 			"lazy":      groupSpec.Lazy,
 		}
 		groupConfigKeys := []string{"name", "type", "interval", "tolerance", "lazy"}
-		var proxyConfigs []map[string]any
-		if groupProbeEnabled(groupSpec) {
-			proxies, builtProxyConfigs, err := buildGroupProxies(profile, groupName, groupSpec, groupProfile, cfg, catalog, probeState, probeDigests)
-			if err != nil {
-				return RenderData{}, err
-			}
-			if len(proxies) == 0 {
-				diagnosis := diagnoseEmptyGroup(groupSpec, groupProfile, cfg, catalog, probeState, probeDigests)
-				refreshCommand := fmt.Sprintf("run `mihomo providers probe --group %s` to refresh local probe state", groupName)
-				return RenderData{}, fmt.Errorf(
-					"service group %s has no eligible proxies on %s (probe=%s); %s; %s",
-					groupName,
-					profile,
-					groupProbeService(groupSpec),
-					diagnosis,
-					refreshCommand,
-				)
-			}
-			groupConfigValues["proxies"] = filterReservedProxyGroupMembers(proxies)
-			groupConfigKeys = append(groupConfigKeys, "proxies")
-			proxyConfigs = builtProxyConfigs
-		} else {
-			useProviders, filterPattern, excludePattern, err := buildRuntimeGroupProvidersAndFilters(groupProfile, groupSpec, cfg)
-			if err != nil {
-				return RenderData{}, fmt.Errorf("build runtime group %s: %w", groupName, err)
-			}
-			if len(useProviders) == 0 {
-				return RenderData{}, fmt.Errorf("service group %s has no eligible providers on %s", groupName, profile)
-			}
-			groupConfigValues["use"] = toAnySlice(useProviders)
-			groupConfigKeys = append(groupConfigKeys, "use")
-			if filterPattern != "" {
-				groupConfigValues["filter"] = filterPattern
-				groupConfigKeys = append(groupConfigKeys, "filter")
-			}
-			excludeFilter, err := groupExcludeFilter(cfg, groupSpec, excludePattern)
-			if err != nil {
-				return RenderData{}, fmt.Errorf("build exclude-filter for group %s: %w", groupName, err)
-			}
-			if excludeFilter != "" {
-				groupConfigValues["exclude-filter"] = excludeFilter
-				groupConfigKeys = append(groupConfigKeys, "exclude-filter")
-			}
+		useProviders, filterPattern, excludePattern, err := buildRuntimeGroupProvidersAndFilters(groupProfile, groupSpec, cfg)
+		if err != nil {
+			return RenderData{}, fmt.Errorf("build runtime group %s: %w", groupName, err)
+		}
+		if len(useProviders) == 0 {
+			return RenderData{}, fmt.Errorf("service group %s has no eligible providers on %s", groupName, profile)
+		}
+		groupConfigValues["use"] = toAnySlice(useProviders)
+		groupConfigKeys = append(groupConfigKeys, "use")
+		if filterPattern != "" {
+			groupConfigValues["filter"] = filterPattern
+			groupConfigKeys = append(groupConfigKeys, "filter")
+		}
+		excludeFilter, err := groupExcludeFilter(cfg, groupSpec, excludePattern)
+		if err != nil {
+			return RenderData{}, fmt.Errorf("build exclude-filter for group %s: %w", groupName, err)
+		}
+		if excludeFilter != "" {
+			groupConfigValues["exclude-filter"] = excludeFilter
+			groupConfigKeys = append(groupConfigKeys, "exclude-filter")
 		}
 		if groupType == "url-test" {
-			groupURL, err := resolveServiceGroupURL(groupName, groupSpec, cfg)
-			if err != nil {
-				return RenderData{}, fmt.Errorf("resolve url-test target for group %s: %w", groupName, err)
-			}
+			groupURL := resolveServiceGroupURL(groupSpec)
 			groupConfigValues["url"] = groupURL
 			groupConfigKeys = append(groupConfigKeys, "url")
 		}
@@ -212,19 +172,6 @@ func (s *Service) buildRenderData(profile, platform string, options GenerateOpti
 			Keys:   groupConfigKeys,
 			Values: groupConfigValues,
 		})
-
-		for _, cfgEntry := range proxyConfigs {
-			name := stringValue(cfgEntry["name"])
-			provider := stringValue(cfgEntry["_provider"])
-			if existingProvider, ok := seenProxyProviders[name]; ok && existingProvider != provider {
-				return RenderData{}, fmt.Errorf("duplicate proxy name %q selected from providers %s and %s", name, existingProvider, provider)
-			}
-			seenProxyProviders[name] = provider
-			if selectedProviderNodes[provider] == nil {
-				selectedProviderNodes[provider] = map[string]map[string]any{}
-			}
-			selectedProviderNodes[provider][name] = cfgEntry
-		}
 	}
 
 	proxies := append([]any(nil), manualProxies...)
@@ -478,196 +425,11 @@ func unsupportedHighMultiplierPatterns(cfg *GenerationConfig, groupSpec ServiceG
 	return patterns, nil
 }
 
-func resolveServiceGroupURL(groupName string, groupSpec ServiceGroupSpec, cfg *GenerationConfig) (string, error) {
+func resolveServiceGroupURL(groupSpec ServiceGroupSpec) string {
 	if groupSpec.URL != "" {
-		return groupSpec.URL, nil
+		return groupSpec.URL
 	}
-
-	probeService := groupProbeService(groupSpec)
-	if !groupProbeEnabled(groupSpec) {
-		if _, ok := cfg.Probe.Services[groupName]; ok {
-			probeService = groupName
-		} else {
-			probeService = "latency"
-		}
-	}
-	serviceSpec, ok := cfg.Probe.Services[probeService]
-	if !ok {
-		return "", fmt.Errorf("probe service %q is not defined", probeService)
-	}
-	if serviceSpec.URLTest != "" {
-		return serviceSpec.URLTest, nil
-	}
-
-	parsed, err := url.Parse(serviceSpec.URI)
-	if err != nil {
-		return "", fmt.Errorf("parse probe uri for service %q: %w", probeService, err)
-	}
-	switch strings.ToLower(parsed.Scheme) {
-	case "http", "https":
-		return serviceSpec.URI, nil
-	default:
-		return "", fmt.Errorf("probe service %q uses non-http uri %q; set probe.services.%s.url-test or service-groups.%s.url", probeService, serviceSpec.URI, probeService, probeService)
-	}
-}
-
-func buildGroupProxies(profile, groupName string, groupSpec ServiceGroupSpec, groupProfile ServiceGroupProfileSpec, cfg *GenerationConfig, catalog *ProviderCatalog, probeState *ProbeState, probeDigests map[string]string) ([]any, []map[string]any, error) {
-	names := []any{}
-	configs := []map[string]any{}
-	probeService := groupProbeService(groupSpec)
-	probeDigest, ok := probeDigests[probeService]
-	if !ok {
-		return nil, nil, fmt.Errorf("probe service %q is not defined", probeService)
-	}
-	groupDigest := groupProbeDigest(profile, groupName, groupSpec, groupProfile, probeDigest)
-	groupState, ok := probeState.LookupGroup(profile, groupName, groupDigest)
-	if !ok {
-		diagnosis := diagnoseEmptyGroup(groupSpec, groupProfile, cfg, catalog, probeState, probeDigests)
-		return nil, nil, fmt.Errorf(
-			"missing fresh group probe state for %s on %s (probe=%s); %s; run `mihomo providers probe --group %s`",
-			groupName,
-			profile,
-			probeService,
-			diagnosis,
-			groupName,
-		)
-	}
-	unsupportedPatterns, err := unsupportedHighMultiplierPatterns(cfg, groupSpec)
-	if err != nil {
-		return nil, nil, fmt.Errorf("build group high multiplier filters for %s: %w", groupName, err)
-	}
-	unsupportedMatchers, err := compileRegexps(unsupportedPatterns)
-	if err != nil {
-		return nil, nil, fmt.Errorf("compile group high multiplier filters for %s: %w", groupName, err)
-	}
-	for _, providerName := range cfg.ProviderOrder {
-		if _, ok := cfg.ProxyProviders[providerName]; !ok {
-			continue
-		}
-		if len(groupProfile.Providers) > 0 && !containsString(groupProfile.Providers, providerName) {
-			continue
-		}
-		snapshot, ok := catalog.Providers[providerName]
-		if !ok {
-			continue
-		}
-		expectedProviderDigest, ok := groupState.ProviderDigests[providerName]
-		if !ok || expectedProviderDigest != snapshot.Digest {
-			continue
-		}
-		for _, proxy := range snapshot.Proxies {
-			selectedNode, ok := groupState.Nodes[proxy.Name]
-			if !ok || selectedNode.Provider != providerName || !selectedNode.Service.OK {
-				continue
-			}
-			if len(unsupportedMatchers) > 0 && !matchesProxyName(proxy.Name, nil, unsupportedMatchers) {
-				continue
-			}
-			names = append(names, proxy.Name)
-			cloned := cloneMap(proxy.Config)
-			cloned["_provider"] = providerName
-			configs = append(configs, cloned)
-		}
-	}
-	return names, configs, nil
-}
-
-func diagnoseEmptyGroup(groupSpec ServiceGroupSpec, groupProfile ServiceGroupProfileSpec, cfg *GenerationConfig, catalog *ProviderCatalog, probeState *ProbeState, probeDigests map[string]string) string {
-	matchers, err := compileRegexps(groupSpec.Match)
-	if err != nil {
-		return fmt.Sprintf("failed to compile match regex: %v", err)
-	}
-	excluders, err := compileRegexps(groupSpec.Exclude)
-	if err != nil {
-		return fmt.Sprintf("failed to compile exclude regex: %v", err)
-	}
-	probeService := groupProbeService(groupSpec)
-	probeDigest, ok := probeDigests[probeService]
-	if !ok {
-		return fmt.Sprintf("probe service %q is not defined", probeService)
-	}
-
-	reasonOrder := []ProbeLookupReason{
-		ProbeLookupStaleProbeDigest,
-		ProbeLookupMissingServiceState,
-		ProbeLookupProbeFailed,
-		ProbeLookupStaleSubscriptionDigest,
-		ProbeLookupMissingNodeState,
-		ProbeLookupMissingProviderState,
-	}
-	reasonLabels := map[ProbeLookupReason]string{
-		ProbeLookupStaleProbeDigest:        "stale probe digest",
-		ProbeLookupMissingServiceState:     "missing service probe result",
-		ProbeLookupProbeFailed:             "probe failed",
-		ProbeLookupStaleSubscriptionDigest: "stale provider digest",
-		ProbeLookupMissingNodeState:        "missing node state",
-		ProbeLookupMissingProviderState:    "missing provider state",
-	}
-
-	parts := []string{}
-	for _, providerName := range cfg.ProviderOrder {
-		if _, ok := cfg.ProxyProviders[providerName]; !ok {
-			continue
-		}
-		if len(groupProfile.Providers) > 0 && !containsString(groupProfile.Providers, providerName) {
-			continue
-		}
-		snapshot, ok := catalog.Providers[providerName]
-		if !ok {
-			continue
-		}
-		providerMatchers, providerExcluders, err := providerRegexps(groupProfile, providerName)
-		if err != nil {
-			return fmt.Sprintf("failed to compile provider filters for %s: %v", providerName, err)
-		}
-
-		matchedNodes := 0
-		reasonCounts := map[ProbeLookupReason]int{}
-		failureSample := ""
-		for _, proxy := range snapshot.Proxies {
-			if !matchesProxyName(proxy.Name, matchers, excluders) {
-				continue
-			}
-			if !matchesProxyName(proxy.Name, providerMatchers, providerExcluders) {
-				continue
-			}
-			matchedNodes++
-			result := probeState.Diagnose(providerName, snapshot.Digest, proxy.Name, probeService, probeDigest)
-			if result.Reason == ProbeLookupOK {
-				continue
-			}
-			reasonCounts[result.Reason]++
-			if result.Reason == ProbeLookupProbeFailed && failureSample == "" {
-				failureSample = probeFailureSummary(result.State)
-			}
-		}
-		if matchedNodes == 0 {
-			parts = append(parts, fmt.Sprintf("%s: no nodes matched group filters", providerName))
-			continue
-		}
-
-		reasonParts := []string{}
-		for _, reason := range reasonOrder {
-			count := reasonCounts[reason]
-			if count == 0 {
-				continue
-			}
-			label := reasonLabels[reason]
-			if reason == ProbeLookupProbeFailed && failureSample != "" {
-				label = label + " (" + failureSample + ")"
-			}
-			reasonParts = append(reasonParts, fmt.Sprintf("%s=%d", label, count))
-		}
-		if len(reasonParts) == 0 {
-			parts = append(parts, fmt.Sprintf("%s: matched=%d but none eligible", providerName, matchedNodes))
-			continue
-		}
-		parts = append(parts, fmt.Sprintf("%s: matched=%d, %s", providerName, matchedNodes, strings.Join(reasonParts, ", ")))
-	}
-	if len(parts) == 0 {
-		return "no providers configured for this profile"
-	}
-	return strings.Join(parts, "; ")
+	return "https://connectivitycheck.gstatic.com/generate_204"
 }
 
 func providerRegexps(groupProfile ServiceGroupProfileSpec, providerName string) ([]*regexp.Regexp, []*regexp.Regexp, error) {
@@ -688,16 +450,6 @@ func providerRegexps(groupProfile ServiceGroupProfileSpec, providerName string) 
 		return nil, nil, err
 	}
 	return matchers, excluders, nil
-}
-
-func probeFailureSummary(state ServiceProbeState) string {
-	if state.Reason != "" {
-		return state.Reason
-	}
-	if state.Error != "" {
-		return state.Error
-	}
-	return "unknown failure"
 }
 
 func matchesProxyName(name string, matchers, excluders []*regexp.Regexp) bool {
@@ -966,24 +718,6 @@ func (o OrderedList) MarshalYAML() (any, error) {
 		node.Content = append(node.Content, itemNode)
 	}
 	return node, nil
-}
-
-func DefaultProbeStatePath() (string, error) {
-	if value := strings.TrimSpace(os.Getenv("MIHOMO_PROBE_STATE_PATH")); value != "" {
-		return value, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, "Library", "Application Support", "clash", "probe-results.yaml"), nil
-	}
-	stateHome := strings.TrimSpace(os.Getenv("XDG_STATE_HOME"))
-	if stateHome == "" {
-		stateHome = filepath.Join(home, ".local", "state")
-	}
-	return filepath.Join(stateHome, "clash", "probe-results.yaml"), nil
 }
 
 func DetectRepoRoot() (string, error) {

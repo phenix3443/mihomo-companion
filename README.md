@@ -56,7 +56,6 @@ Before pushing repository changes, run `make ci`. Keep tracked provider examples
 ./bin/mihctl config sync --profile local
 ./bin/mihctl providers update
 ./bin/mihctl providers sync
-./bin/mihctl providers probe
 ./bin/mihctl install
 ./bin/mihctl service status
 ```
@@ -66,8 +65,6 @@ Before pushing repository changes, run `make ci`. Keep tracked provider examples
 - Go
 - `yq`
 - `lefthook`
-- for local probe: `sing-box`, `ss-local`
-- for some `ss + plugin: obfs` nodes: `simple-obfs`
 
 ## Config model
 
@@ -80,7 +77,6 @@ Before pushing repository changes, run `make ci`. Keep tracked provider examples
 
 - install Mihomo and UI
 - update provider subscriptions
-- probe provider nodes
 - generate runtime config
 - sync config and providers into a live Mihomo target
 - manage Mihomo service lifecycle

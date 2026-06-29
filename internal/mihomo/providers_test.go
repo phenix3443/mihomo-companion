@@ -27,10 +27,6 @@ func TestUpdateProvidersRemoteOnlyRefreshesProviderFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(configDir, "values.yaml"), []byte(`
-probe:
-  services:
-    latency:
-      uri: https://connectivitycheck.gstatic.com/generate_204
 proxy-providers:
   demo:
     type: http
@@ -41,15 +37,9 @@ proxy-providers:
 		t.Fatal(err)
 	}
 
-	statePath := filepath.Join(t.TempDir(), "probe-results.yaml")
-	if err := os.WriteFile(statePath, []byte("sentinel-state\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
 	env := &Env{
 		RepoRoot:            repoRoot,
 		ProvidersDir:        filepath.Join(repoRoot, "providers"),
-		ProbeStatePath:      statePath,
 		FetchConnectTimeout: time.Second,
 		FetchMaxTime:        time.Second,
 	}
@@ -65,17 +55,9 @@ proxy-providers:
 	if string(content) != "proxies: []\n" {
 		t.Fatalf("provider content = %q", string(content))
 	}
-
-	stateContent, err := os.ReadFile(statePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(stateContent) != "sentinel-state\n" {
-		t.Fatalf("probe state changed unexpectedly: %q", string(stateContent))
-	}
 }
 
-func TestUpdateProvidersRemoteDoesNotCreateProbeState(t *testing.T) {
+func TestUpdateProvidersRemoteWithoutExtraLocalState(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("proxies: []\n"))
@@ -88,10 +70,6 @@ func TestUpdateProvidersRemoteDoesNotCreateProbeState(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(configDir, "values.yaml"), []byte(`
-probe:
-  services:
-    latency:
-      uri: https://connectivitycheck.gstatic.com/generate_204
 proxy-providers:
   demo:
     type: http
@@ -102,11 +80,9 @@ proxy-providers:
 		t.Fatal(err)
 	}
 
-	statePath := filepath.Join(t.TempDir(), "probe-results.yaml")
 	env := &Env{
 		RepoRoot:            repoRoot,
 		ProvidersDir:        filepath.Join(repoRoot, "providers"),
-		ProbeStatePath:      statePath,
 		FetchConnectTimeout: time.Second,
 		FetchMaxTime:        time.Second,
 	}
@@ -114,8 +90,12 @@ proxy-providers:
 		t.Fatal(err)
 	}
 
-	if _, err := os.Stat(statePath); !os.IsNotExist(err) {
-		t.Fatalf("probe state should not be created, stat err = %v", err)
+	entries, err := os.ReadDir(filepath.Join(repoRoot, "providers"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "demo.yaml" {
+		t.Fatalf("providers dir entries = %#v", entries)
 	}
 }
 
@@ -146,10 +126,6 @@ func TestUpdateProvidersRemoteFetchesProvidersConcurrently(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(configDir, "values.yaml"), []byte(`
-probe:
-  services:
-    latency:
-      uri: https://connectivitycheck.gstatic.com/generate_204
 proxy-providers:
   alpha:
     type: http
@@ -168,7 +144,6 @@ proxy-providers:
 	env := &Env{
 		RepoRoot:            repoRoot,
 		ProvidersDir:        filepath.Join(repoRoot, "providers"),
-		ProbeStatePath:      filepath.Join(t.TempDir(), "probe-results.yaml"),
 		FetchConnectTimeout: 2 * time.Second,
 		FetchMaxTime:        2 * time.Second,
 	}

@@ -17,9 +17,6 @@ template:
   dns:
     fake-ip-filter: []
 
-probe:
-  services: {}
-
 official-support: {}
 
 manual-proxies: []

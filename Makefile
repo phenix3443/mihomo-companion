@@ -32,7 +32,4 @@ hooks:
 	@lefthook install
 
 install-scheduler-deps:
-	@echo "Installing scheduler dependencies (sing-box, shadowsocks-libev)..."
-	@command -v sing-box >/dev/null 2>&1 || brew install sing-box
-	@command -v ss-local >/dev/null 2>&1 || brew install shadowsocks-libev
-	@echo "Done."
+	@echo "No extra local dependencies required."
