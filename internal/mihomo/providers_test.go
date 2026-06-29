@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/phenix3443/mihomo-companion/internal/configgen"
+	"github.com/phenix3443/mihctl/internal/configgen"
 )
 
 func TestUpdateProvidersRemoteOnlyRefreshesProviderFiles(t *testing.T) {

@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/phenix3443/mihomo-companion/internal/mihomo"
+	"github.com/phenix3443/mihctl/internal/mihomo"
 	"github.com/spf13/cobra"
 )
 

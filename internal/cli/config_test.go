@@ -3,8 +3,8 @@ package cli
 import (
 	"testing"
 
-	"github.com/phenix3443/mihomo-companion/internal/configgen"
-	"github.com/phenix3443/mihomo-companion/internal/mihomo"
+	"github.com/phenix3443/mihctl/internal/configgen"
+	"github.com/phenix3443/mihctl/internal/mihomo"
 )
 
 func TestConfigSyncCommandPassesExplicitProfile(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/phenix3443/mihomo-companion/internal/configgen"
+	"github.com/phenix3443/mihctl/internal/configgen"
 )
 
 func (e *Env) runAsSudoUser(name string, args ...string) error {

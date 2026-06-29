@@ -1,0 +1,57 @@
+name: Update Homebrew Tap
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+    secrets:
+      TAP_PUSH_TOKEN:
+        required: true
+
+jobs:
+  update-homebrew-tap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download checksums
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o checksums.txt "https://github.com/phenix3443/mihomo-companion/releases/download/${VERSION}/checksums.txt"
+
+      - name: Render formula
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p Formula
+          bash scripts/ci/render-homebrew-formula.sh "${VERSION}" checksums.txt > Formula/mihctl.rb
+
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: phenix3443/homebrew-tap
+          token: ${{ secrets.TAP_PUSH_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update tap formula
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p homebrew-tap/Formula
+          cp Formula/mihctl.rb homebrew-tap/Formula/mihctl.rb
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/mihctl.rb
+          if git diff --cached --quiet; then
+            echo "No tap changes to commit."
+            exit 0
+          fi
+          git commit -m "mihctl ${VERSION}"
+          git push origin HEAD:main

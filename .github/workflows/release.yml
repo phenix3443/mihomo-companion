@@ -81,3 +81,11 @@ jobs:
           files: |
             release/*.tar.gz
             release/checksums.txt
+
+  homebrew:
+    needs: publish
+    uses: ./.github/workflows/update-homebrew-tap.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets:
+      TAP_PUSH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}

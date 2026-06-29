@@ -1,4 +1,4 @@
-module github.com/phenix3443/mihomo-companion
+module github.com/phenix3443/mihctl
 
 go 1.26.0
 

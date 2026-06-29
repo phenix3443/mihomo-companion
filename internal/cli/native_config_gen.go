@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/phenix3443/mihomo-companion/internal/configgen"
+	"github.com/phenix3443/mihctl/internal/configgen"
 )
 
 type nativeConfigGenOptions struct {

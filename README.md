@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/phenix3443/mihomo-companion/actions/workflows/ci.yml">
-    <img src="https://github.com/phenix3443/mihomo-companion/actions/workflows/ci.yml/badge.svg" alt="CI status" />
+  <a href="https://github.com/phenix3443/mihctl/actions/workflows/ci.yml">
+    <img src="https://github.com/phenix3443/mihctl/actions/workflows/ci.yml/badge.svg" alt="CI status" />
   </a>
-  <a href="https://github.com/phenix3443/mihomo-companion/actions/workflows/release.yml">
-    <img src="https://github.com/phenix3443/mihomo-companion/actions/workflows/release.yml/badge.svg" alt="Release status" />
+  <a href="https://github.com/phenix3443/mihctl/actions/workflows/release.yml">
+    <img src="https://github.com/phenix3443/mihctl/actions/workflows/release.yml/badge.svg" alt="Release status" />
   </a>
 </p>
 
@@ -45,7 +45,16 @@ $EDITOR config/values.yaml
 
 Tagged releases publish `tar.gz` archives for Linux and macOS on both `amd64` and `arm64`, plus a `checksums.txt` file. Each archive contains `mihctl` and the `config/` template directory.
 
-When `mihctl` is used from an instance repository instead of the `mihomo-companion` source tree, set `MIHCTL_INSTANCE_ROOT` to that instance repository root before running commands.
+When `mihctl` is used from an instance repository instead of the `mihctl` source tree, set `MIHCTL_INSTANCE_ROOT` to that instance repository root before running commands.
+
+## Install with Homebrew
+
+```bash
+brew tap phenix3443/tap
+brew install mihctl
+```
+
+The Homebrew formula installs the `mihctl` binary and ships the tracked `config/` templates under Homebrew's `pkgshare` directory.
 
 Before pushing repository changes, run `make ci`. Keep tracked provider examples on placeholder domains such as `example.com`; real provider subscription links belong only in your local `config/values.yaml`.
 

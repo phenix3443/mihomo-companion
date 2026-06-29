@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/phenix3443/mihomo-companion/internal/mihomo"
+	"github.com/phenix3443/mihctl/internal/mihomo"
 )
 
 func TestRulesUpdateCommandUpdatesRules(t *testing.T) {

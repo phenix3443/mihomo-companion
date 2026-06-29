@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/phenix3443/mihomo-companion/internal/cli"
+	"github.com/phenix3443/mihctl/internal/cli"
 )
 
 func main() {

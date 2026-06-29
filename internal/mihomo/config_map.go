@@ -1,6 +1,6 @@
 package mihomo
 
-import "github.com/phenix3443/mihomo-companion/internal/configgen"
+import "github.com/phenix3443/mihctl/internal/configgen"
 
 func asConfigMap(value any) (map[string]any, bool) {
 	switch typed := value.(type) {

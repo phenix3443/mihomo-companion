@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/phenix3443/mihomo-companion/internal/platform"
+	"github.com/phenix3443/mihctl/internal/platform"
 )
 
 func ServiceStatus() (string, error) {

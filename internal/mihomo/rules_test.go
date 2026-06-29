@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/phenix3443/mihomo-companion/internal/runtime"
+	"github.com/phenix3443/mihctl/internal/runtime"
 )
 
 func TestUpdateRulesRemoteUpdatesAllRuntimeRuleProviders(t *testing.T) {
