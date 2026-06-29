@@ -154,8 +154,9 @@ func parseSSProxy(provider, raw string) (ParsedProxy, error) {
 	if err != nil {
 		return ParsedProxy{}, err
 	}
-	name := decodeFragment(u.Fragment)
-	if beforeAt, _, ok := strings.Cut(name, "@"); ok {
+	rawName := decodeFragment(u.Fragment)
+	name := rawName
+	if beforeAt, _, ok := strings.Cut(rawName, "@"); ok {
 		name = beforeAt
 	}
 
@@ -182,8 +183,9 @@ func parseSSProxy(provider, raw string) (ParsedProxy, error) {
 		"password": password,
 		"udp":      true,
 	}
+	cfg["name"] = normalizeProviderNodeName(provider, rawName, server, cfg["name"].(string))
 	applySSPluginOptions(cfg, u.Query().Get("plugin"))
-	return ParsedProxy{Provider: provider, Name: name, Config: cfg}, nil
+	return ParsedProxy{Provider: provider, Name: stringValue(cfg["name"]), Config: cfg}, nil
 }
 
 func parseSSUserInfo(u *url.URL) (string, string, string, int, error) {
@@ -310,7 +312,8 @@ func parseVMessProxy(provider, raw string) (ParsedProxy, error) {
 	}
 
 	name := node.Name
-	if beforeAt, _, ok := strings.Cut(name, "@"); ok {
+	rawName := name
+	if beforeAt, _, ok := strings.Cut(rawName, "@"); ok {
 		name = beforeAt
 	}
 
@@ -324,6 +327,7 @@ func parseVMessProxy(provider, raw string) (ParsedProxy, error) {
 		"cipher":  nonEmpty(strings.TrimSpace(node.Cipher), "auto"),
 		"udp":     true,
 	}
+	cfg["name"] = normalizeProviderNodeName(provider, rawName, strings.TrimSpace(node.Server), cfg["name"].(string))
 	if network := strings.TrimSpace(node.Network); network != "" && network != "tcp" {
 		cfg["network"] = network
 	}
@@ -346,7 +350,44 @@ func parseVMessProxy(provider, raw string) (ParsedProxy, error) {
 		}
 	}
 
-	return ParsedProxy{Provider: provider, Name: name, Config: cfg}, nil
+	return ParsedProxy{Provider: provider, Name: stringValue(cfg["name"]), Config: cfg}, nil
+}
+
+func normalizeProviderNodeName(provider, rawName, server, fallback string) string {
+	if provider != "jms" {
+		return fallback
+	}
+
+	rawName = strings.TrimSpace(rawName)
+	if rawName == "" {
+		return fallback
+	}
+	if !strings.HasPrefix(rawName, "JMS-") {
+		return fallback
+	}
+
+	label := "LA"
+	if _, afterAt, ok := strings.Cut(rawName, "@"); ok {
+		hostPart := afterAt
+		if host, _, err := net.SplitHostPort(afterAt); err == nil {
+			hostPart = host
+		}
+		hostPart = strings.TrimSpace(hostPart)
+		if hostPart != "" {
+			label = hostPart
+			if first, _, ok := strings.Cut(hostPart, "."); ok {
+				label = first
+			}
+		}
+	}
+	if label == "" {
+		label = server
+	}
+	if label == "" {
+		label = "LA"
+	}
+
+	return fmt.Sprintf("🇺🇸 美国-Los Angeles %s丨1x US", label)
 }
 
 func parseVLESSProxy(provider, raw string) (ParsedProxy, error) {

@@ -161,7 +161,7 @@ func TestLoadProviderCatalogParsesJMSStyleSSSubscriptions(t *testing.T) {
 	if got := stringValue(jms.Proxies[0].Config["type"]); got != "ss" {
 		t.Fatalf("jms type = %q", got)
 	}
-	if got := stringValue(jms.Proxies[0].Config["name"]); got != "JMS-1404950" {
+	if got := stringValue(jms.Proxies[0].Config["name"]); got != "🇺🇸 美国-Los Angeles c69s1丨1x US" {
 		t.Fatalf("jms name = %q", got)
 	}
 	if got := stringValue(jms.Proxies[0].Config["server"]); got != "144.34.164.128" {
@@ -186,20 +186,20 @@ func TestLoadProviderCatalogParsesVMessSubscriptions(t *testing.T) {
 	}
 
 	catalog, err := LoadProviderCatalog(dir, map[string]ProxyProviderSpec{
-		"vmess": {Path: "./providers/vmess.yaml"},
+		"jms": {Path: "./providers/vmess.yaml"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	vmess := catalog.Providers["vmess"]
+	vmess := catalog.Providers["jms"]
 	if len(vmess.Proxies) != 1 {
 		t.Fatalf("vmess proxy count = %d, want 1", len(vmess.Proxies))
 	}
 	if got := stringValue(vmess.Proxies[0].Config["type"]); got != "vmess" {
 		t.Fatalf("vmess type = %q", got)
 	}
-	if got := stringValue(vmess.Proxies[0].Config["name"]); got != "JMS-1404950" {
+	if got := stringValue(vmess.Proxies[0].Config["name"]); got != "🇺🇸 美国-Los Angeles c69s3丨1x US" {
 		t.Fatalf("vmess name = %q", got)
 	}
 	if got := stringValue(vmess.Proxies[0].Config["server"]); got != "104.243.26.96" {
