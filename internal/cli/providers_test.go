@@ -1,49 +1,22 @@
 package cli
 
-import (
-	"reflect"
-	"testing"
+import "testing"
 
-	"github.com/phenix3443/mihomo-companion/internal/configgen"
-	"github.com/phenix3443/mihomo-companion/internal/mihomo"
-)
-
-func TestProvidersProbeCommandBuildsServiceScope(t *testing.T) {
-	originalLoadEnv := loadEnv
-	originalRunProvidersProbe := runProvidersProbe
-	t.Cleanup(func() {
-		loadEnv = originalLoadEnv
-		runProvidersProbe = originalRunProvidersProbe
-	})
-
-	env := &mihomo.Env{}
-	loadEnv = func() (*mihomo.Env, error) {
-		return env, nil
-	}
-
-	var gotEnv *mihomo.Env
-	var gotScope configgen.ProbeScope
-	runProvidersProbe = func(actualEnv *mihomo.Env, scope configgen.ProbeScope) error {
-		gotEnv = actualEnv
-		gotScope = scope
-		return nil
-	}
-
+func TestProvidersCommandExposesExpectedSubcommands(t *testing.T) {
 	cmd := newProvidersCmd()
-	cmd.SetArgs([]string{"probe", "--provider", "bywave", "--provider", "jisu", "--group", "stable"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
+
+	got := make([]string, 0, len(cmd.Commands()))
+	for _, subcmd := range cmd.Commands() {
+		got = append(got, subcmd.Name())
 	}
 
-	if gotEnv != env {
-		t.Fatal("probe command did not use loaded env")
+	want := []string{"sync", "update"}
+	if len(got) != len(want) {
+		t.Fatalf("subcommand count = %d, want %d (%v)", len(got), len(want), got)
 	}
-	wantScope := configgen.ProbeScope{
-		Providers: []string{"bywave", "jisu"},
-		Services:  []string{"stable"},
-		Mode:      configgen.ProbeModeService,
-	}
-	if !reflect.DeepEqual(gotScope, wantScope) {
-		t.Fatalf("scope = %#v, want %#v", gotScope, wantScope)
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("subcommands = %v, want %v", got, want)
+		}
 	}
 }
