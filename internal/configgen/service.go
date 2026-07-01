@@ -28,10 +28,15 @@ type GenerateResult struct {
 }
 
 func NewService(repoRoot string) *Service {
+	templateRoot, err := ResolveTemplateRoot(repoRoot)
+	if err != nil {
+		templateRoot = repoRoot
+	}
 	return &Service{
 		Paths: Paths{
 			RepoRoot:       repoRoot,
-			TemplateConfig: filepath.Join(repoRoot, "config", "mihomo.yaml.tmpl"),
+			TemplateRoot:   templateRoot,
+			TemplateConfig: filepath.Join(templateRoot, "config", "mihomo.yaml.tmpl"),
 			ValuesConfig:   filepath.Join(repoRoot, "config", "values.yaml"),
 		},
 	}

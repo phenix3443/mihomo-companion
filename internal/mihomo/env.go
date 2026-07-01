@@ -87,7 +87,6 @@ func LoadEnv(repoRoot string) (*Env, error) {
 		PlistPath:           "/Library/LaunchDaemons/com.metacubex.mihomo.plist",
 		SudoersPath:         "/etc/sudoers.d/mihomo",
 		Launchctl:           "/bin/launchctl",
-		TemplateServicePath: filepath.Join(repoRoot, "config", "mihomo.service.example"),
 		DefaultProfile:      defaultProfile,
 		RuntimeProfiles:     runtimeProfiles,
 		ProvidersDir:        filepath.Join(repoRoot, "providers"),
@@ -114,6 +113,12 @@ func LoadEnv(repoRoot string) (*Env, error) {
 		env.ConfigDir = getenvDefault("CONFIG_DIR", "/etc/clash")
 		env.InstallDir = getenvDefault("INSTALL_DIR", "/usr/local/bin")
 	}
+
+	templateRoot, err := configgen.ResolveTemplateRoot(repoRoot)
+	if err != nil {
+		templateRoot = repoRoot
+	}
+	env.TemplateServicePath = filepath.Join(templateRoot, "config", "mihomo.service.example")
 
 	return env, nil
 }

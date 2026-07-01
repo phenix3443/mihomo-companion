@@ -19,6 +19,8 @@
 
 `mihctl` is a companion CLI for [Mihomo](https://github.com/MetaCubeX/mihomo). It helps you install Mihomo, manage provider subscriptions, generate config from templates, and sync generated config into a live runtime on macOS and Linux.
 
+When `mihctl` is used from an instance repository, the instance repository provides `config/values.yaml` and `providers/`, while template files are resolved from the public `mihctl` package/repository.
+
 ## What this repository contains
 
 - the `mihctl` source code
@@ -45,7 +47,7 @@ $EDITOR config/values.yaml
 
 Tagged releases publish `tar.gz` archives for Linux and macOS on both `amd64` and `arm64`, plus a `checksums.txt` file. Each archive contains `mihctl` and the `config/` template directory.
 
-When `mihctl` is used from an instance repository instead of the `mihctl` source tree, set `MIHCTL_INSTANCE_ROOT` to that instance repository root before running commands.
+When `mihctl` is used from an instance repository instead of the `mihctl` source tree, set `MIHCTL_INSTANCE_ROOT` to that instance repository root before running commands. `MIHCTL_INSTANCE_ROOT` points to instance data only; it does not override the public template files bundled with `mihctl`.
 
 ## Install with Homebrew
 
@@ -77,6 +79,7 @@ Before pushing repository changes, run `make ci`. Keep tracked provider examples
 
 ## Config model
 
+- public templates live in `mihctl/config/`
 - track `config/values.example.yaml` in git
 - keep your real `config/values.yaml` locally
 - fetch provider files into local `providers/`

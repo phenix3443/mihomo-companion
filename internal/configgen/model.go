@@ -14,6 +14,7 @@ type GenerateOptions struct {
 
 type Paths struct {
 	RepoRoot       string
+	TemplateRoot   string
 	TemplateConfig string
 	ValuesConfig   string
 }
